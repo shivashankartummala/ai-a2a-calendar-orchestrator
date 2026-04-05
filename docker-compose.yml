@@ -1,0 +1,63 @@
+services:
+  mcp_calendar_server:
+    build:
+      context: .
+      dockerfile: mcp_calendar_server/Dockerfile
+    container_name: mcp_calendar_server
+    environment:
+      MCP_MOCK_MODE: "${MCP_MOCK_MODE:-true}"
+      MCP_HOST: "${MCP_HOST:-0.0.0.0}"
+      MCP_PORT: "${MCP_PORT:-8002}"
+    ports:
+      - "8002:8002"
+
+  google_agent_service:
+    build:
+      context: .
+      dockerfile: sub_agent_service/Dockerfile
+    container_name: google_agent_service
+    environment:
+      SUB_AGENT_HOST: "${GOOGLE_SUB_AGENT_HOST:-0.0.0.0}"
+      SUB_AGENT_PORT: "${GOOGLE_SUB_AGENT_PORT:-8001}"
+      PROVIDER_TYPE: "${GOOGLE_PROVIDER_TYPE:-google}"
+      MCP_BASE_URL: "${GOOGLE_MCP_BASE_URL:-http://mcp_calendar_server:8002}"
+      HTTP_TIMEOUT_SECONDS: "${HTTP_TIMEOUT_SECONDS:-10}"
+    depends_on:
+      - mcp_calendar_server
+    ports:
+      - "8001:8001"
+
+  outlook_agent_service:
+    build:
+      context: .
+      dockerfile: sub_agent_service/Dockerfile
+    container_name: outlook_agent_service
+    environment:
+      SUB_AGENT_HOST: "${OUTLOOK_SUB_AGENT_HOST:-0.0.0.0}"
+      SUB_AGENT_PORT: "${OUTLOOK_SUB_AGENT_PORT:-8001}"
+      PROVIDER_TYPE: "${OUTLOOK_PROVIDER_TYPE:-outlook}"
+      MCP_BASE_URL: "${OUTLOOK_MCP_BASE_URL:-http://mcp_calendar_server:8002}"
+      HTTP_TIMEOUT_SECONDS: "${HTTP_TIMEOUT_SECONDS:-10}"
+    depends_on:
+      - mcp_calendar_server
+    ports:
+      - "8003:8001"
+
+  master_agent:
+    build:
+      context: .
+      dockerfile: master_agent/Dockerfile
+    container_name: master_agent
+    environment:
+      MASTER_HOST: "${MASTER_HOST:-0.0.0.0}"
+      MASTER_PORT: "${MASTER_PORT:-8000}"
+      GOOGLE_AGENT_BASE_URL: "${GOOGLE_AGENT_BASE_URL:-http://google_agent_service:8001}"
+      OUTLOOK_AGENT_BASE_URL: "${OUTLOOK_AGENT_BASE_URL:-http://outlook_agent_service:8001}"
+      USE_LLM_PLANNER: "${USE_LLM_PLANNER:-false}"
+      LITELLM_MODEL: "${LITELLM_MODEL:-claude-3-5-sonnet-20241022}"
+      HTTP_TIMEOUT_SECONDS: "${HTTP_TIMEOUT_SECONDS:-10}"
+    depends_on:
+      - google_agent_service
+      - outlook_agent_service
+    ports:
+      - "8010:8000"

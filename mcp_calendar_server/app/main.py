@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+import logging
+from fastapi import FastAPI
+
+from .config import settings
+from .providers import MockCalendarBackend
+from .tools import (
+    MCP_TOOL_DEFINITIONS,
+    BookMeetingInput,
+    BookMeetingOutput,
+    FetchCalendarSlotsInput,
+    FetchCalendarSlotsOutput,
+)
+
+app = FastAPI(title="OpenMCP Calendar Server", version="1.0.0")
+logger = logging.getLogger("mcp_calendar_server")
+backend = MockCalendarBackend()
+
+
+@app.get("/health")
+def health() -> dict:
+    return {"ok": True, "mock_mode": settings.mock_mode}
+
+
+@app.get("/tools")
+def tools() -> dict:
+    return {"tools": MCP_TOOL_DEFINITIONS}
+
+
+@app.post("/tools/fetch_calendar_slots", response_model=FetchCalendarSlotsOutput)
+def fetch_calendar_slots(payload: FetchCalendarSlotsInput) -> FetchCalendarSlotsOutput:
+    logger.info(
+        "mcp.fetch_calendar_slots",
+        extra={"user_id": payload.user_id, "provider": payload.provider},
+    )
+    # In production mode, replace with Google/Outlook API adapter implementations.
+    return backend.fetch_calendar_slots(user_id=payload.user_id, provider=payload.provider)
+
+
+@app.post("/tools/book_meeting", response_model=BookMeetingOutput)
+def book_meeting(payload: BookMeetingInput) -> BookMeetingOutput:
+    logger.info(
+        "mcp.book_meeting",
+        extra={"attendees": payload.attendees, "start_time": payload.start_time.isoformat()},
+    )
+    return backend.book_meeting(
+        start_time=payload.start_time,
+        end_time=payload.end_time,
+        attendees=payload.attendees,
+    )
