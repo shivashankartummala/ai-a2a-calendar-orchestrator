@@ -1,0 +1,53 @@
+name: PR Build and Test
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Python Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest -q
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build master_agent image
+        run: docker build -f master_agent/Dockerfile -t a2a/master_agent:ci .
+
+      - name: Build google_agent_service image
+        run: docker build -f sub_agent_service/Dockerfile -t a2a/google_agent_service:ci .
+
+      - name: Build outlook_agent_service image
+        run: docker build -f sub_agent_service/Dockerfile -t a2a/outlook_agent_service:ci .
+
+      - name: Build mcp_calendar_server image
+        run: docker build -f mcp_calendar_server/Dockerfile -t a2a/mcp_calendar_server:ci .
