@@ -341,3 +341,26 @@ Replace mock adapters in:
 Then wire provider-specific API credentials from `.env`.
 
 </details>
+
+<details>
+<summary><strong>Future Enhancements</strong></summary>
+
+1. `Production Calendar Adapters`
+Transition from `MockCalendarBackend` to full OAuth2-based integrations with Google Calendar API and Microsoft Graph API.
+
+2. `Dynamic Meeting Parameters`
+Update the n8n webhook and Master Agent to support variable meeting durations and custom search horizons beyond the current 30-minute/7-day defaults.
+
+3. `Human-in-the-Loop (HITL) Negotiation`
+Implement a multi-slot proposal system where the agent suggests the top 3 windows and waits for admin approval via Slack or email before booking.
+
+4. `Enhanced User Preferences`
+Incorporate per-user "Working Hours," "Focus Time" guardrails, and "Preferred Meeting Windows" into the `busy_to_free` logic to prevent scheduling during personal time.
+
+5. `Advanced Observability`
+Integrate LangSmith or OpenTelemetry for deep tracing of the LangGraph state machine, allowing for performance monitoring of the A2A negotiation phase.
+
+6. `Conflict Resolution Policies`
+Add logic to handle "Soft Conflicts" (e.g., low-priority meetings that can be moved) vs. "Hard Conflicts" to increase the probability of finding a shared slot.
+
+</details>
