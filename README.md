@@ -10,6 +10,8 @@ The `master_agent` receives an external trigger (n8n webhook), decomposes the sc
 
 This architecture showcases core A2A patterns: task delegation, protocol-based inter-agent messaging, role specialization, traceable negotiation, and centralized tool interoperability via MCP.
 
+![A2A Orchestration Diagram](docs/images/a2a-demo.png)
+
 ## Quick Start
 
 ```bash
