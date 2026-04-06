@@ -72,6 +72,8 @@ Orchestration path:
 6. User `A` is admin, so booking is delegated through admin path.
 7. `mcp_calendar_server` books and returns confirmation.
 
+![A2A Sequence Diagram](docs/images/a2a-demo-sequence-diagram.png)
+
 </details>
 
 <details>
