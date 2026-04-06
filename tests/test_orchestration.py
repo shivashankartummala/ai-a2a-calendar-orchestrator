@@ -61,6 +61,13 @@ class FakeSubAgentClient:
         }
 
 
+class FailingSubAgentClient(FakeSubAgentClient):
+    async def get_availability(self, trace_id: str, user_id: str, provider: str) -> dict:
+        if user_id == "B":
+            raise RuntimeError("MCP availability failed for user_id=B: missing calendar permissions")
+        return await super().get_availability(trace_id, user_id, provider)
+
+
 @pytest.mark.asyncio
 async def test_success_path_books_meeting() -> None:
     now = datetime.now(UTC).replace(second=0, microsecond=0)
@@ -131,3 +138,28 @@ async def test_mixed_provider_map_routes_per_user() -> None:
     assert result["status"] == "success"
     assert called_map == provider_map
     assert client.booking_calls[0]["provider"] == "google"
+
+
+@pytest.mark.asyncio
+async def test_availability_failure_returns_structured_error() -> None:
+    now = datetime.now(UTC).replace(second=0, microsecond=0)
+    start = now + timedelta(hours=1)
+    end = start + timedelta(hours=2)
+    slots = [{"start_time": start.isoformat(), "end_time": end.isoformat()}]
+
+    client = FailingSubAgentClient(availabilities={"A": slots, "B": slots, "C": slots})
+    result = await run_orchestration(
+        input_request={
+            "trigger": "email",
+            "topic": "security",
+            "users": ["A", "B", "C"],
+            "providers": {"A": "google", "B": "google", "C": "google"},
+        },
+        sub_agent_client=client,
+    )
+
+    assert result["status"] == "availability_failed"
+    assert result["booking_result"] is None
+    assert result["proposed_slot"] is None
+    assert "B" in result["availability_failures"]
+    assert client.booking_calls == []

@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, HTTPException
+import httpx
 from pydantic import BaseModel
 from zoneinfo import ZoneInfo
 from datetime import timezone
@@ -72,7 +73,11 @@ async def availability(req: AvailabilityRequest) -> dict:
             detail=f"Provider mismatch for this agent. expected={settings.provider_type} requested={requested_provider}",
         )
 
-    slots = await mcp_client.fetch_calendar_slots(user_id=req.user_id, provider=settings.provider_type)
+    try:
+        slots = await mcp_client.fetch_calendar_slots(user_id=req.user_id, provider=settings.provider_type)
+    except httpx.HTTPStatusError as exc:
+        detail = f"MCP availability failed for user_id={req.user_id}: {exc.response.text}"
+        raise HTTPException(status_code=424, detail=detail)
     now = datetime.now(UTC)
     horizon_end = now + timedelta(days=req.horizon_days)
 

@@ -71,20 +71,37 @@ async def _request_availability(state: OrchestratorState, sub_agent_client: SubA
         )
         for user_id in users
     ]
-    responses = await asyncio.gather(*tasks)
+    responses = await asyncio.gather(*tasks, return_exceptions=True)
+    by_user: dict[str, dict] = {}
+    failures: dict[str, str] = {}
 
-    by_user = {item["user_id"]: item for item in responses}
+    for user_id, result in zip(users, responses):
+        if isinstance(result, Exception):
+            failures[user_id] = str(result)
+            continue
+        by_user[user_id] = result
 
     logger.info(
         "master.availability.collected",
         extra={"trace_id": trace_id, "event": "availability_collected", "user_id": "-"},
     )
 
-    return {"sub_agent_results": by_user}
+    if failures:
+        return {
+            "sub_agent_results": by_user,
+            "availability_failures": failures,
+            "status": "availability_failed",
+            "error": "One or more user calendars could not be queried.",
+        }
+
+    return {"sub_agent_results": by_user, "availability_failures": {}}
 
 
 async def _negotiate_slot(state: OrchestratorState) -> OrchestratorState:
     trace_id = state["trace_id"]
+    if state.get("status") == "availability_failed":
+        return {"status": "availability_failed", "proposed_slot": None}
+
     results = state.get("sub_agent_results", {})
     free_by_user = {u: payload["free"] for u, payload in results.items()}
 
@@ -108,18 +125,23 @@ async def _book_if_possible(state: OrchestratorState, sub_agent_client: SubAgent
     slot = state.get("proposed_slot")
     provider_by_user = state.get("provider_by_user", {})
     admin_provider = provider_by_user.get("A", state.get("provider", "google"))
+    user_emails = request.get("user_emails", {})
 
+    if status == "availability_failed":
+        return {"booking_result": None, "status": "availability_failed"}
     if status == "no_shared_slot":
         return {"booking_result": None, "status": "no_shared_slot"}
     if status != "slot_found" or not slot:
         return {"booking_result": None, "status": "failed"}
+
+    attendees = [user_emails.get(user_id, user_id) for user_id in request["users"]]
 
     booking = await sub_agent_client.book_as_admin(
         trace_id=trace_id,
         provider=admin_provider,
         start_time=slot["start_time"],
         end_time=slot["end_time"],
-        attendees=request["users"],
+        attendees=attendees,
     )
 
     logger.info(
@@ -167,6 +189,8 @@ async def run_orchestration(input_request: dict, sub_agent_client: SubAgentClien
     return {
         "trace_id": trace_id,
         "status": result.get("status", "failed"),
+        "error": result.get("error"),
+        "availability_failures": result.get("availability_failures", {}),
         "proposed_slot": result.get("proposed_slot"),
         "booking_result": result.get("booking_result"),
     }
