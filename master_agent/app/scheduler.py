@@ -26,6 +26,16 @@ def _normalize(slots: list[dict]) -> list[tuple[datetime, datetime]]:
     return intervals
 
 
+def _ceil_to_slot(dt: datetime, slot_minutes: int) -> datetime:
+    dt = _ensure_aware(dt)
+    slot_seconds = slot_minutes * 60
+    epoch_seconds = int(dt.timestamp())
+    remainder = epoch_seconds % slot_seconds
+    if remainder == 0:
+        return dt
+    return datetime.fromtimestamp(epoch_seconds + (slot_seconds - remainder), tz=dt.tzinfo)
+
+
 def _intersect_two(
     left: list[tuple[datetime, datetime]],
     right: list[tuple[datetime, datetime]],
@@ -54,6 +64,7 @@ def _intersect_two(
 def find_first_shared_slot(
     free_by_user: dict[str, list[dict]],
     duration_minutes: int = 30,
+    slot_granularity_minutes: int = 30,
     horizon_days: int = 7,
     now: Optional[datetime] = None,
 ) -> Optional[dict]:
@@ -75,10 +86,11 @@ def find_first_shared_slot(
     for start, end in common:
         bounded_start = max(start, cursor)
         bounded_end = min(end, horizon_end)
-        if bounded_end - bounded_start >= needed:
+        candidate_start = _ceil_to_slot(bounded_start, slot_granularity_minutes)
+        if bounded_end - candidate_start >= needed:
             return {
-                "start_time": bounded_start.isoformat(),
-                "end_time": (bounded_start + needed).isoformat(),
+                "start_time": candidate_start.isoformat(),
+                "end_time": (candidate_start + needed).isoformat(),
             }
 
     return None
