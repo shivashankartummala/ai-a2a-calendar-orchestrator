@@ -1,34 +1,71 @@
-In this project, the Agent-to-Agent (A2A) protocol is implemented as a structured pattern of task delegation and message exchange between a central orchestrator and specialized sub-agents. Instead of a single service handling all calendar types, the system splits responsibilities across agents that "negotiate" to reach a shared goal.
+# A2A Protocol Walkthrough
 
-The A2A protocol is used across two primary phases of the scheduling workflow:
+This project implements the Agent-to-Agent (A2A) protocol as a structured pattern of task delegation and message exchange between:
 
-1. Asynchronous Availability Discovery
-The Master Agent initiates a "broadcast" to multiple sub-agents to discover when users are free:
+1. A central `master_agent` (orchestrator)
+2. Specialized provider agents (`google_agent_service`, `outlook_agent_service`)
+3. A shared MCP tool server (`mcp_calendar_server`)
 
-Role Specialization: The Master Agent identifies which sub-agent service (Google or Outlook) is responsible for each user.
+Instead of one service handling everything, agents collaborate to negotiate a shared scheduling outcome.
 
-Standardized Messaging: The Master Agent sends a uniform POST /availability request to each sub-agent.
+## Why This Is A2A
 
-Protocol Contract: Each sub-agent is responsible for its own user's data; it fetches raw intervals from the MCP server, calculates free time, and returns a standardized JSON object to the Master Agent.
+The system demonstrates core A2A properties:
 
-Decoupled Logic: The Master Agent does not need to know how to calculate "free time" from "busy time"; it simply trusts the sub-agent's response.
+1. Role specialization: each agent has a focused responsibility.
+2. Standardized inter-agent contracts: agents communicate using consistent HTTP/JSON payloads.
+3. Delegated execution: the master coordinates, but does not perform provider-specific operations itself.
+4. Negotiation traceability: each interaction carries `trace_id` for end-to-end visibility.
 
-2. Admin Booking Delegation
-Once a shared slot is identified by the Master Agent's internal scheduler, the protocol dictates how the booking is finalized:
+## Phase 1: Asynchronous Availability Discovery
 
-Admin Path: The protocol identifies User A as the admin who has the authority to book the meeting.
+The `master_agent` starts a broadcast-style discovery across provider agents.
 
-Command Delegation: Instead of the Master Agent booking the meeting directly, it sends a POST /book command to the Admin's Sub-Agent.
+### Flow
 
-Guardrail Enforcement: The sub-agent validates that the request is coming from the authorized admin (User A) before calling the final MCP tool to book the meeting.
+1. Master identifies the responsible provider agent for each user.
+2. Master sends standardized `POST /availability` requests.
+3. Each provider agent:
+4. Fetches raw busy intervals from MCP (`fetch_calendar_slots`).
+5. Converts busy intervals to free intervals.
+6. Returns standardized free/busy JSON to the master.
 
-3. Technical Implementation Details
-The "protocol" itself is enforced through several architectural choices:
+### A2A Characteristics
 
-Traceable Negotiation: A unique trace_id is passed in every A2A request, allowing the entire multi-agent conversation to be traced across different service logs.
+1. `master_agent` does not compute provider-specific calendar extraction logic.
+2. Provider agents are independently replaceable.
+3. Availability calculation remains encapsulated per agent.
 
-HTTP/JSON Contract: The protocol uses FastAPI to define strict request and response models, ensuring that agents can always "understand" each other regardless of their internal implementation.
+## Phase 2: Admin Booking Delegation
 
-Service Discovery: The Master Agent uses base URLs for the Google and Outlook services to route A2A messages to the correct provider agent.
+After shared-slot intersection, booking is delegated through the admin path.
 
-By using this A2A pattern, the system remains highly modular; you can add a third sub-agent for a different provider (like Apple Calendar) without changing the core negotiation logic in the Master Agent.
+### Flow
+
+1. Master selects a shared candidate slot.
+2. Protocol identifies user `A` as booking authority.
+3. Master sends `POST /book` to the admin's provider agent.
+4. Provider agent validates admin guardrail (`requested_by == "A"`).
+5. Provider agent invokes MCP `book_meeting`.
+
+### A2A Characteristics
+
+1. Authority stays with the sub-agent boundary, not hardcoded in master-side booking logic.
+2. Final booking execution is delegated, not centralized.
+
+## Protocol Contracts And Enforcement
+
+The protocol is enforced through concrete engineering choices:
+
+1. `trace_id` propagation across all A2A calls.
+2. FastAPI request/response models for strict schema contracts.
+3. Provider-based service routing using configured base URLs.
+4. Guardrails in provider agents for provider mismatch and admin authorization.
+
+## Modularity And Extensibility
+
+Because negotiation logic is separated from provider execution:
+
+1. You can add a new provider agent (for example Apple Calendar) with minimal master changes.
+2. Existing provider agents remain unaffected.
+3. The master orchestration and intersection logic can stay stable while integrations evolve.
