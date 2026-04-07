@@ -23,7 +23,7 @@ Webhook:
 ```bash
 curl -X POST http://localhost:8010/webhook/n8n \
   -H "Content-Type: application/json" \
-  -d '{"trigger":"email","topic":"security","users":["A","B","C"],"providers":{"A":"google","B":"outlook","C":"google"}}'
+  -d '{"trigger":"email","topic":"security","users":["A","B","C"],"user_emails":{"A":"a@gmail.com","B":"b@gmail.com","C":"c@gmail.com"},"providers":{"A":"google","B":"outlook","C":"google"}}'
 ```
 
 <details>
@@ -173,6 +173,11 @@ Input webhook JSON:
   "trigger": "email",
   "topic": "security",
   "users": ["A", "B", "C"],
+  "user_emails": {
+    "A": "a@gmail.com",
+    "B": "b@gmail.com",
+    "C": "c@gmail.com"
+  },
   "providers": {
     "A": "google",
     "B": "outlook",
@@ -185,6 +190,7 @@ Notes:
 
 1. `providers` is optional.
 2. Missing users default to `google` (or LLM-selected default when planner is enabled).
+3. `user_emails` is optional but recommended for real booking invites.
 
 Sample success response:
 
@@ -286,7 +292,7 @@ docker-compose logs -f master_agent google_agent_service outlook_agent_service m
 pytest -q
 ```
 
-Expected: `3 passed`
+Expected: `4 passed`
 
 </details>
 
@@ -313,6 +319,25 @@ docker-compose --env-file .env up --build -d
 2. google/outlook provider agent vars
 3. MCP mock vars
 4. production credential placeholders
+
+For live Google mode, set:
+
+1. `MCP_MOCK_MODE=false`
+2. `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
+3. `GOOGLE_USER_CONFIG_JSON` with per-user refresh tokens/calendar IDs/emails
+4. `GOOGLE_BOOKING_USER_ID=A` (or your admin user id)
+
+Gmail-only quick setup:
+
+```bash
+cp .env.gmail.example .env
+```
+
+Then update these fields in `.env`:
+
+1. `GOOGLE_CLIENT_ID`
+2. `GOOGLE_CLIENT_SECRET`
+3. Refresh tokens and emails inside `GOOGLE_USER_CONFIG_JSON` for `A`, `B`, `C`
 
 </details>
 

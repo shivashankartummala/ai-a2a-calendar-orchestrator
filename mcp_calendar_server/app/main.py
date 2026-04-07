@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from .config import settings
-from .providers import MockCalendarBackend
+from .providers import CalendarBackend
 from .tools import (
     MCP_TOOL_DEFINITIONS,
     BookMeetingInput,
@@ -15,7 +15,7 @@ from .tools import (
 
 app = FastAPI(title="OpenMCP Calendar Server", version="1.0.0")
 logger = logging.getLogger("mcp_calendar_server")
-backend = MockCalendarBackend()
+backend = CalendarBackend()
 
 
 @app.get("/health")
@@ -34,8 +34,10 @@ def fetch_calendar_slots(payload: FetchCalendarSlotsInput) -> FetchCalendarSlots
         "mcp.fetch_calendar_slots",
         extra={"user_id": payload.user_id, "provider": payload.provider},
     )
-    # In production mode, replace with Google/Outlook API adapter implementations.
-    return backend.fetch_calendar_slots(user_id=payload.user_id, provider=payload.provider)
+    try:
+        return backend.fetch_calendar_slots(user_id=payload.user_id, provider=payload.provider)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.post("/tools/book_meeting", response_model=BookMeetingOutput)
@@ -44,8 +46,18 @@ def book_meeting(payload: BookMeetingInput) -> BookMeetingOutput:
         "mcp.book_meeting",
         extra={"attendees": payload.attendees, "start_time": payload.start_time.isoformat()},
     )
-    return backend.book_meeting(
-        start_time=payload.start_time,
-        end_time=payload.end_time,
-        attendees=payload.attendees,
-    )
+    provider = "google"
+    for attendee in payload.attendees:
+        if attendee.lower().endswith(("@outlook.com", "@hotmail.com", "@live.com", "@microsoft.com")):
+            provider = "outlook"
+            break
+
+    try:
+        return backend.book_meeting(
+            start_time=payload.start_time,
+            end_time=payload.end_time,
+            attendees=payload.attendees,
+            provider=provider,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
