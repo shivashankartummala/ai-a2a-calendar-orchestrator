@@ -8,4 +8,6 @@ __pycache__/
 .env.*
 !.env.example
 !.env.gmail.example
+*.log
+test.log
 .DS_Store
